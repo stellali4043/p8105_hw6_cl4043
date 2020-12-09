@@ -1,0 +1,19 @@
+---
+title: "p8105_hw6_cl4043"
+author: "Stella Li"
+date: "12/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(modelr)
+library(mgcv)
+library(purrr)
+library(rvest)
+```
+
