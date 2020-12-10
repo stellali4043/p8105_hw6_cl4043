@@ -147,7 +147,7 @@ From the histogram, we can see that the residuals look almost normal.
 # One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
 set.seed(1)
 fit_1 = lm(bwt ~ blength + gaweeks, data = birthweight)
-fit_2 = lm(bwt ~ bhead * blength * babysex, data = birthweight)
+fit_2 = lm(bwt ~  bhead*blength*babysex + bhead*blength + bhead*babysex + blength*babysex, data = birthweight)
 
 cv_df =
   crossv_mc(birthweight, 100) %>% 
@@ -159,7 +159,7 @@ cv_df =
   cv_df %>% 
   mutate(
     simple_model = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
-    interaction_model = map(train, ~lm(bwt ~ bhead * blength * babysex, data = .x)),
+    interaction_model = map(train, ~lm(bwt ~  bhead*blength*babysex + bhead*blength + bhead*babysex + blength*babysex, data = .x)),
     full_model = map(train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + 
     gaweeks + mheight + mrace + parity + ppwt + smoken + momage, data = birthweight))
   ) %>%
@@ -185,7 +185,7 @@ cv_df %>%
     y = "RMSE"
   )
 ```
-
+I started by building a preliminary model using backward stepwise regression, and then I compared the two models, one including mother's race as a covariate and one do not. From the plot above, it looks like the full model performs the best.
 
 ## Problem 3
 
@@ -235,8 +235,8 @@ bootstrap_results %>%
   ggplot(aes(x = r_squared)) + 
   geom_density() + 
   labs(
-    title = "5000 Boostrap Estimates of r^2",
-    x = "r^2",
+    title = "5000 Boostrap Estimates of r_squared",
+    x = "r_squared",
     y = "Density"
   )
 bootstrap_results %>%
