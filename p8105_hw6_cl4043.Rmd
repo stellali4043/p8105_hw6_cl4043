@@ -16,7 +16,6 @@ library(modelr)
 library(mgcv)
 library(purrr)
 library(rvest)
-library(p8105.datasets)
 ```
 
 ## Problem 1
@@ -189,3 +188,75 @@ cv_df %>%
 
 
 ## Problem 3
+
+```{r message=FALSE, warning=FALSE}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# drawing bootstrap samples
+set.seed(1)
+boot_sample = function(df) {
+  sample_frac(df, replace = TRUE)
+}
+boot_straps = 
+  data_frame(
+    strap_number = 1:5000,
+    strap_sample = rerun(5000, boot_sample(weather_df))
+  )
+bootstrap_results = 
+  boot_straps %>% 
+  mutate(
+    models = map(strap_sample, ~lm(tmax ~ tmin, data = .x)),
+    results = map(models, broom::glance),  
+    results_2 = map(models, broom::tidy)) %>%
+  select(-strap_sample, -models) %>% 
+  unnest(results,
+         results_2) %>% 
+  select(strap_number, r.squared, term, estimate) %>%
+  pivot_wider(names_from = term,
+              values_from = estimate) %>%
+  janitor::clean_names() %>%
+  mutate(log_value = log(intercept * tmin))
+
+# plotting bootstrap results
+bootstrap_results %>% 
+  ggplot(aes(x = r_squared)) + 
+  geom_density() + 
+  labs(
+    title = "5000 Boostrap Estimates of r^2",
+    x = "r^2",
+    y = "Density"
+  )
+bootstrap_results %>%
+  ggplot(aes(x = log_value)) + 
+  geom_density()
+```
+The distributions of both the R^2 values and the log(B_0_hat*B_1_hat) values seem to follow fairly normal distributions.  
+
+```{r messages=FALSE, warning=FALSE}
+# constructing confidence intervals
+bootstrap_results %>% 
+  summarize(
+    ci_lower_rsqd = quantile(r_squared, 0.025), 
+    ci_upper_rsqd = quantile(r_squared, 0.975),
+    ci_lower_log = quantile(log_value, 0.025), 
+    ci_upper_log = quantile(log_value, 0.975)) %>%
+  rename(`R^2 Lower CI` = ci_lower_rsqd,
+         `R^2 Upper CI` = ci_upper_rsqd,
+         `log(B0hat*B1hat) Lower CI` = ci_lower_log,
+         `log(B0hat*B1hat) Upper CI` = ci_upper_log)
+
+```
+
