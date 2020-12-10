@@ -41,8 +41,11 @@ homicide_df = read_csv("./data/homicide-data.csv", na = c("", "NA", "Unknown")) 
 baltimore_df =
   homicide_df %>%
   filter(city_state == "Baltimore, MD")
-	
-glm(resolution ~ victim_age + victim_race + victim_sex, data = baltimore_df, family = binomial()) %>%
+
+glm(resolved ~ victim_age + victim_race + victim_sex, 
+	    data= baltimore_df,
+	    family = binomial()) %>%
+  
   broom::tidy() %>%
   mutate(OR = exp(estimate),
          CI_lower = exp(estimate -1.96 * std.error),
@@ -78,7 +81,7 @@ models_results_df %>%
   ggplot(aes(x = city_state, y = OR)) +
   geom_point() +
   geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper)) +
-  theme(axis.text = element_text(angle = 270, vjust = 0.5, hjust = 1)) +
+  theme(axis.text = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   labs(
     title = "Confidence Intervals",
     x = "City and State",
@@ -89,6 +92,100 @@ models_results_df %>%
 ## Problem 2
 
 ```{r message=FALSE, warning=FALSE}
-
+birthweight <- read_csv("./data/birthweight.csv", na = c("", "NA", "Unknown")) %>%
+  janitor::clean_names() %>%
+  mutate(babysex = as_factor(babysex),
+         frace = as_factor(frace),
+         malform = as_factor(malform),
+         mrace = as_factor(mrace))
 ```
 
+```{r message=FALSE, warning=FALSE}
+# fitting a regression model to baby weight
+full_model_bw <- lm(bwt ~ ., data = birthweight)
+step(full_model_bw, direction='backward')
+```
+
+```{r message=FALSE, warning=FALSE}
+# Compare the model generated from backward stepwise selection with the same model now including mother's race as a covariate
+model_1 <- lm(bwt ~ babysex + bhead + blength + delwt + fincome + 
+    gaweeks + mheight + parity + ppwt + smoken + momage, data = birthweight)
+model_2 <- lm(bwt ~ babysex + bhead + blength + delwt + fincome + 
+    gaweeks + mheight + parity + ppwt + smoken + momage + mrace, data = birthweight)
+anova(model_1, model_2)
+summary(model_1)
+summary(model_2)
+```
+
+As we can see from the p-value, 2.2e-16, so we rejected the null hypothesis and conclude that the larger model is superior.
+
+```{r message=FALSE, warning=FALSE}
+# Choose the bigger model and plot the residuals vs fitted values.
+birthweight %>% 
+  modelr::add_residuals(model_2) %>%
+  modelr::add_predictions(model_2) %>%
+  ggplot(aes(x = pred, y = resid)) + geom_point() + 
+  labs(
+    title = "Residuals versus Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  )
+
+birthweight %>% 
+  modelr::add_residuals(model_2) %>%
+  modelr::add_predictions(model_2) %>%
+  ggplot(aes(x = resid)) + geom_density() + 
+  labs(
+    title = "Residuals versus Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  )
+```
+From the histogram, we can see that the residuals look almost normal.
+
+```{r message=FALSE, warning=FALSE}
+# One using length at birth and gestational age as predictors (main effects only)
+# One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+set.seed(1)
+fit_1 = lm(bwt ~ blength + gaweeks, data = birthweight)
+fit_2 = lm(bwt ~ bhead * blength * babysex, data = birthweight)
+
+cv_df =
+  crossv_mc(birthweight, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_df = 
+  cv_df %>% 
+  mutate(
+    simple_model = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    interaction_model = map(train, ~lm(bwt ~ bhead * blength * babysex, data = .x)),
+    full_model = map(train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + 
+    gaweeks + mheight + mrace + parity + ppwt + smoken + momage, data = birthweight))
+  ) %>%
+    
+  mutate(
+    rmse_simple = map2_dbl(simple_model, test, ~rmse(model = .x, data = .y)),
+    rmse_interaction = map2_dbl(interaction_model, test, ~rmse(model = .x, data = .y)),
+    rmse_full_model = map2_dbl(full_model, test, ~rmse(model = .x, data = .y))
+    )
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin() + 
+  labs(
+    title = "RMSE for Each of the Three Birthweight Models",
+    x = "Model",
+    y = "RMSE"
+  )
+```
+
+
+## Problem 3
